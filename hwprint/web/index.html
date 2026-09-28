@@ -180,12 +180,12 @@ textarea{width:100%;min-height:200px;resize:vertical;line-height:1.55}
 
 <div class="modal" id="planModal">
   <div class="box">
-    <h2>开始打印前核对一下</h2>
+    <h2>开写前发现问题</h2>
     <p id="planText"></p>
     <div id="planWarn"></div>
     <div class="btns">
-      <button onclick="$('planModal').classList.remove('show')">取消</button>
-      <button class="primary" onclick="doStart()">确定，开始写</button>
+      <button onclick="$('planModal').classList.remove('show')">先不写，去改</button>
+      <button class="primary" onclick="doStart()">照样开始写</button>
     </div>
   </div>
 </div>
@@ -413,11 +413,10 @@ async function startPrint(){
   if(!connected){ alert('先连接写字机'); return; }
   const p=await api.plan(parseInt($('fromPos').value||'1'), parseInt($('fromPage').value||'1'));
   if(!p.docs){ alert('队列里没有勾选要写的原稿'); return; }
-  const fp=parseInt($('fromPage').value||'1');
-  $('planText').innerHTML='要写 <b>'+p.docs+'</b> 份、共 <b>'+p.pages+'</b> 页，大约 <b>'+p.minutes+'</b> 分钟。<br>'+
-    '第一份是《'+esc(short(p.first))+'》'+(fp>1?'，从第 '+fp+' 页写起':'')+'。<br>'+
-    '请确认：本子放好，<b>笔尖对准'+(fp>1?'这一页横线区':'首页表格')+'的左上角</b>（开写时笔尖在哪，哪就是左上角）。';
-  $('planWarn').innerHTML = p.warn.length ? ('<div class="warn" style="font-weight:600">请留意：</div><ul>'+p.warn.map(w=>'<li>'+esc(w)+'</li>').join('')+'</ul>') : '<div class="good">核对无问题。</div>';
+  // 点"开始打印"直接开写，不再二次确认（09-28 用户要求）；只有会把纸写坏的问题（空栏、写不下、缺字）才拦一下
+  if(!p.warn.length) return doStart();
+  $('planText').innerHTML='照样写的话，下面这些地方会写成空白或写不全。要改就点"先不写，去改"。';
+  $('planWarn').innerHTML='<ul>'+p.warn.map(w=>'<li class="warn">'+esc(w)+'</li>').join('')+'</ul>';
   $('planModal').classList.add('show');
 }
 async function doStart(){
@@ -427,8 +426,8 @@ async function doStart(){
 }
 function pauseResume(){ if(job.state==='paused') api.resume(); else api.pause(); }
 async function stopPrint(){
-  const running=['printing','paused','turn','turn_doc'].includes(job.state);
-  if(running && !confirm('确定终止？\n（笔会马上抬起停住，再回到这一页的左上角。之后可以用“从第几份的第几页开始”接着写）')) return;
+  // 只有写到一半（正在写、暂停中）才问一句，免得误点废一页；换纸时点"不写了"直接停（09-28 用户要求不再提示）
+  if(['printing','paused'].includes(job.state) && !confirm('确定终止？\n（笔会马上抬起停住，再回到这一页的左上角。之后可以用“从第几份的第几页开始”接着写）')) return;
   await api.stop(); $('turnModal').classList.remove('show');
 }
 async function nextPage(){ $('turnModal').classList.remove('show'); await api.next_page(); }
@@ -471,8 +470,11 @@ async function pollOnce(){
   }
   markPrinting();
   if(job.state==='turn'){
-    $('turnTitle').textContent='本页已打完，请您更换空白页';
-    $('turnText').innerHTML='第 '+job.page+' 页写完了，接下来写这一份的第 '+(job.page+1)+' 页。换好纸后点"继续"。<br><span class="small">写字机已经抬笔回到左上角；纸放的位置和上一页一样的话，不用再对笔。</span>';
+    // 纸两面都写：下一页是偶数页就翻到这一张的背面，奇数页才换空白页（09-28 用户定）
+    $('turnTitle').textContent=job.flip?'本页已打完，请您翻页':'本页已打完，请您更换空白页';
+    $('turnText').innerHTML='第 '+job.page+' 页写完了，接下来写这一份的第 '+(job.page+1)+' 页'+(job.flip?'（写在这一张的背面）':'')+'。'+
+      (job.flip?'翻过来放好后点"继续"。':'换好纸后点"继续"。')+'<br><span class="small">写字机已经抬笔回到左上角；'+
+      (job.flip?'翻过来以后，笔尖要是不在横线区的左上角，用手把笔推过去再点继续。':'纸放的位置和上一页一样的话，不用再对笔。')+'</span>';
     $('btnNext').textContent='继续写第 '+(job.page+1)+' 页';
     $('turnModal').classList.add('show');
   } else if(job.state==='turn_doc'){

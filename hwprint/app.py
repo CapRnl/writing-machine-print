@@ -756,7 +756,8 @@ class Api:
         todo = [d for d in self._docs if d.checked]
         from_pos = max(1, min(int(from_pos), max(1, len(todo))))
         todo = todo[from_pos - 1:]
-        warn = []
+        # warn：会把纸写坏的问题（空栏、写不下、缺字），有这些才拦一下；info：只记进日志、不拦（09-28 用户要"点开始打印直接打印"）
+        warn, info = [], []
         for i, d in enumerate(todo):
             s = self._summary(d)
             tag = '第%d份《%s》' % (from_pos + i, os.path.splitext(d.name)[0][:24])
@@ -765,17 +766,17 @@ class Api:
             if s['overflow'] and not (i == 0 and int(from_page) > 1):
                 warn.append('%s：%s，按原大写不下（程序不缩小字，多出的字不写），请先改短' % (tag, '、'.join(s['overflow'])))
             if d.record.kind == 'study' and not s['empty'] and not (i == 0 and int(from_page) > 1):
-                # 学习记录的人数、缺席原稿里没有，是按上次的值带出的，每月可能不同：列出来请用户看一眼
+                # 学习记录的人数、缺席原稿里没有，是按上次的值带出的，每月可能不同
                 f = d.record.fields
-                warn.append('%s：学习表头请核对——学习时间 %s，应到 %s 人、实到 %s 人，缺席 %s（人数和缺席是按上次的值带出的）' % (
+                info.append('%s：学习表头——学习时间 %s，应到 %s 人、实到 %s 人，缺席 %s（人数和缺席是按上次的值带出的）' % (
                     tag, f.get('time'), f.get('expected'), f.get('actual'), f.get('absent') or '无'))
             if s['missing']:
                 warn.append('%s：字库里没有"%s"，会空着' % (tag, s['missing']))
             for p in d.problems[:2]:
-                warn.append('%s：%s' % (tag, p))
+                info.append('%s：版式自检 %s' % (tag, p))
         pages = sum(d.comp.pages for d in todo) - (int(from_page) - 1 if todo else 0)
         minutes = sum(d.minutes for d in todo)
-        return {'docs': len(todo), 'pages': max(0, pages), 'minutes': minutes, 'warn': warn,
+        return {'docs': len(todo), 'pages': max(0, pages), 'minutes': minutes, 'warn': warn, 'info': info,
                 'first': todo[0].name if todo else ''}
 
     def start_print(self, from_pos=1, from_page=1):
@@ -792,6 +793,8 @@ class Api:
         todo = [d for d in self._docs if d.checked]
         if not todo:
             return {'ok': False, 'msg': '队列里没有勾选要写的原稿'}
+        for note in self.plan(from_pos, from_page)['info']:     # 不弹窗，记进日志备查
+            self.log('开印前留意：' + note)
         from_pos = max(1, min(int(from_pos), len(todo)))
         todo = todo[from_pos - 1:]
         first_page = max(0, min(int(from_page) - 1, todo[0].comp.pages - 1))
@@ -879,9 +882,13 @@ class Api:
                             self.log('《%s》已全部写完，已自动取消勾选' % os.path.splitext(name)[0])
                         self._save_queue()
                     if k + 1 < len(pages):
-                        self._job.update(state='turn', page=page + 1,
-                                         msg='本页已打完，请您更换空白页（第 %d 页写完），换好后点"继续"' % (page + 1))
-                        self._wait_next('换页')
+                        nxt = pages[k + 1][0]
+                        # 纸两面都写：下一页是偶数页就写在这一张的背面，提醒"翻页"；奇数页才换空白页（09-28 用户定）
+                        flip = (nxt + 1) % 2 == 0
+                        self._job.update(state='turn', page=nxt, flip=flip,
+                                         msg=('本页已打完，请您翻页（接着写第 %d 页），翻好后点"继续"' if flip else
+                                              '本页已打完，请您更换空白页（接着写第 %d 页），换好后点"继续"') % (nxt + 1))
+                        self._wait_next('翻页' if flip else '换页')
                 if j + 1 < len(jobs):
                     nid, nname, nkind, _, _ = jobs[j + 1]
                     change = nkind != kind

@@ -18,6 +18,7 @@ OUT = os.path.join(os.path.dirname(HERE), 'hwprint', 'sounds')
 VOICE = 'zh-CN-YunxiNeural'
 PHRASES = {
     '换页': '本页已打完，请您更换空白页',
+    '翻页': '本页已打完，请您翻页',                 # 下一页是偶数页：写在这一张的背面（09-28 加）
     '换首页': '本份已打完，请您更换带表格的首页',
     '换会议记录本': '本份已打完，请您换成会议记录本的首页',
     '换政治理论学习记录本': '本份已打完，请您换成政治理论学习记录本的首页',
@@ -45,7 +46,10 @@ async def tts(text, path):
     await edge_tts.Communicate(text, VOICE, rate='-5%').save(path)
 
 
+only = sys.argv[1:]                     # 只生成指定的几句，如 python tools\make_voices.py 翻页；不写就全部重新生成
 for name, text in PHRASES.items():
+    if only and name not in only:
+        continue
     mp3 = os.path.join(TMP, name + '.mp3')
     asyncio.run(tts(text, mp3))
     out = os.path.join(OUT, name + '.wav')
