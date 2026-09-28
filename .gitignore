@@ -1,0 +1,27 @@
+# 本机运行环境和缓存
+.venv/
+.webview/
+__pycache__/
+*.pyc
+
+# 个人数据：设置、队列、日志、导出的 G 代码、运行标记
+设置.json
+设置.json.tmp
+队列.json
+队列.json.tmp
+日志/
+导出G代码/
+冒烟测试结果.txt
+启动出错.txt
+
+# 作者本机的使用说明（写的是自己单位的做法；公开的说明见 README.md）
+使用说明.txt
+
+# 字库是别人的作品，不随仓库分发，怎么准备见 fonts/字库说明.txt
+fonts/*.gfont
+
+# 重新生成语音时临时装的依赖
+tools/pylib_tts/
+
+# 本机开发工具的配置
+.claude/

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>写字机打印</title>
+<style>
+:root{
+  --bg:#f4f2ec; --panel:#ffffff; --ink:#1f2a44; --muted:#6b6658; --line:#e2ddd0;
+  --accent:#2f5d8a; --accent2:#e8eff7; --ok:#2e7d4f; --warn:#b26a00; --bad:#b3261e;
+  --radius:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;font-size:14px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);
+  border-radius:8px;padding:6px 12px}
+button:hover{border-color:#bdb6a4}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.primary:hover{filter:brightness(1.08)}
+button.danger{color:var(--bad)}
+button.mini{padding:1px 7px;font-size:12px;border-radius:6px}
+button:disabled{opacity:.45;cursor:default}
+input,select,textarea{font:inherit;color:var(--ink);border:1px solid var(--line);border-radius:7px;
+  padding:5px 8px;background:#fff}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--accent2);border-color:var(--accent)}
+.app{display:grid;grid-template-columns:440px 1fr;grid-template-rows:1fr auto;height:100vh}
+.left{overflow:auto;padding:14px 14px 10px;border-right:1px solid var(--line);background:var(--bg)}
+.right{display:flex;flex-direction:column;min-width:0;min-height:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px}
+.card h3{margin:0 0 10px;font-size:14px;color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px}
+.num{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;
+  font-size:12px;align-items:center;justify-content:center;flex:none}
+.pick{display:flex;gap:8px;margin-bottom:8px}
+.pick button{flex:1}
+.drop{border:2px dashed #cfc8b6;border-radius:var(--radius);padding:10px;text-align:center;color:var(--muted);background:#fbfaf6;font-size:13px}
+.queue{margin-top:10px;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
+.qi{display:grid;grid-template-columns:auto auto 1fr auto;gap:6px;align-items:center;padding:5px 6px;border:1px solid var(--line);
+  border-radius:8px;cursor:pointer;background:#fff}
+.qi:hover{border-color:#bdb6a4}
+.qi.cur{border-color:var(--accent);background:var(--accent2)}
+.qi.printing{outline:2px solid var(--ok)}
+.qi.off{opacity:.5}
+.qi .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.qi .meta{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.qi .ops{display:flex;gap:2px}
+.tag{font-size:11px;border-radius:5px;padding:0 5px;border:1px solid}
+.tag.m{color:#2f5d8a;border-color:#9fb7d0} .tag.s{color:#7a4b00;border-color:#d8b77a}
+.qsum{font-size:12.5px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between;align-items:center}
+.kind{display:flex;gap:6px;margin-bottom:8px}
+.kind label{flex:1;text-align:center;border:1px solid var(--line);border-radius:7px;padding:4px;cursor:pointer;background:#fff;font-size:13px}
+.kind input{display:none}
+.kind label:has(input:checked){border-color:var(--accent);background:var(--accent2);color:var(--accent);font-weight:700}
+.fields{display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center}
+.fields label{color:var(--muted);white-space:nowrap;text-align:right}
+.fields input,.fields select{width:100%}
+textarea{width:100%;min-height:200px;resize:vertical;line-height:1.55}
+.hint{color:var(--muted);font-size:12.5px;margin-top:6px;line-height:1.6}
+.warn{color:var(--warn)} .bad{color:var(--bad)} .good{color:var(--ok)}
+.toolbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.toolbar .grow{flex:1}
+.pager{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pages{display:flex;gap:4px;flex-wrap:wrap;max-width:520px}
+.pages button{padding:2px 8px;border-radius:6px;font-size:12.5px}
+.pages button.cur{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pages button.printing{outline:2px solid var(--ok)}
+.preview{flex:1;overflow:auto;padding:18px;display:flex;justify-content:center;align-items:flex-start;min-height:0}
+.preview svg{height:calc(100vh - 230px);width:auto;max-width:100%;background:#fffdf6;box-shadow:0 2px 14px rgba(40,30,10,.12);border-radius:3px;cursor:zoom-in}
+.preview.zoom svg{height:auto;width:min(100%, 900px);cursor:zoom-out}
+.empty{color:var(--muted);margin-top:80px;text-align:center;line-height:2}
+.bottom{grid-column:1 / 3;background:var(--panel);border-top:1px solid var(--line);padding:10px 16px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sep{width:1px;height:26px;background:var(--line);margin:0 4px}
+.dot{width:10px;height:10px;border-radius:50%;background:#bbb;display:inline-block}
+.dot.on{background:var(--ok)} .dot.alarm{background:var(--bad)}
+.progress{flex:1;min-width:160px;height:10px;background:#ece8dc;border-radius:6px;overflow:hidden}
+.progress>div{height:100%;width:0;background:var(--ok);transition:width .3s}
+.status{font-weight:600}
+.small{font-size:12px;color:var(--muted)}
+.logs{font-family:Consolas,monospace;font-size:11.5px;color:var(--muted);max-height:64px;overflow:auto;white-space:pre-wrap;display:none}
+.logs.show{display:block}
+.locked{opacity:.6;pointer-events:none}
+.modal{position:fixed;inset:0;background:rgba(20,20,20,.35);display:none;align-items:center;justify-content:center;z-index:10}
+.modal.show{display:flex}
+.modal .box{background:#fff;border-radius:14px;padding:24px 28px;max-width:640px;width:calc(100% - 60px);box-shadow:0 10px 40px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
+.modal h2{margin:0 0 10px;font-size:20px}
+.modal p{margin:0 0 14px;line-height:1.8;color:#3b3b3b}
+.modal .btns{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.modal .btns button{padding:9px 18px;font-size:15px}
+.modal ul{margin:6px 0 0;padding-left:20px;line-height:1.7;color:#5a4a2a;font-size:13px}
+.sample{border:1px solid var(--line);border-radius:8px;padding:6px;background:#fffdf6;margin-top:8px}
+.sample svg{width:100%;height:auto;display:block}
+.opt{display:grid;grid-template-columns:110px 1fr;gap:10px 12px;align-items:center}
+.opt label{color:var(--muted);text-align:right}
+.radio{display:flex;gap:14px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="left">
+    <div class="card" id="pickCard">
+      <h3><span class="num">1</span>选要写的原稿（可以一次多份）</h3>
+      <div class="pick">
+        <button onclick="chooseFiles()">选文件（可多选）</button>
+        <button onclick="chooseFolder()" title="选某个月的文件夹，自动挑出会议记录、活动记录、政治理论学习（含讨论），按日期排好">选文件夹</button>
+      </div>
+      <div class="drop" id="drop">也可以把一个或多个 Word 文件、或整个文件夹拖到这里</div>
+      <div class="queue" id="queue"></div>
+      <div class="qsum" id="qsum"></div>
+    </div>
+    <div class="card" id="fieldCard" style="display:none">
+      <h3><span class="num">2</span><span id="editTitle">首页表头（已从原稿自动取出，可改）</span></h3>
+      <div class="kind" id="kindBox">
+        <label><input type="radio" name="kind" value="meeting" onchange="kindChanged()"><span>会议记录本</span></label>
+        <label><input type="radio" name="kind" value="study" onchange="kindChanged()"><span>政治理论学习本</span></label>
+      </div>
+      <div class="fields" id="fields"></div>
+      <div class="fields" style="margin-top:6px"><label>笔迹</label><select id="hand" onchange="setHand()"></select></div>
+      <div class="hint" id="fieldHint"></div>
+    </div>
+    <div class="card" id="bodyCard" style="display:none">
+      <h3><span class="num">3</span>正文（一段一行，改了会自动重排）</h3>
+      <textarea id="body" oninput="scheduleUpdate()"></textarea>
+      <div class="hint" id="summary"></div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="toolbar">
+      <div class="pager">
+        <button onclick="gotoPage(cur-1)">◀</button>
+        <span id="pageLabel">—</span>
+        <button onclick="gotoPage(cur+1)">▶</button>
+      </div>
+      <div class="pages" id="pages"></div>
+      <div class="grow"></div>
+      <button onclick="reseed()" title="重新随机这份的每个字，换一种写法">换一种写法</button>
+      <button onclick="openStyle()" title="默认笔迹、手写变化方式和幅度">笔迹设置</button>
+      <button onclick="exportG()" title="把这一份每页存成一个 G 代码文件，也可以用奎享雕刻的“打开”写">导出G代码</button>
+    </div>
+    <div class="preview" id="preview" onclick="if(pages)this.classList.toggle('zoom')" title="点一下放大/缩小"><div class="empty">左边选好原稿后，这里逐页显示写出来的样子。<br>首页灰色字是本子上印好的栏目，只作对照，不会写。</div></div>
+  </div>
+
+  <div class="bottom">
+    <div class="row">
+      <span class="dot" id="dot"></span>
+      <select id="port"></select>
+      <button id="btnConn" onclick="toggleConn()">连接写字机</button>
+      <span class="small" id="machineInfo"></span>
+      <div class="sep"></div>
+      <button onclick="api.test_sound()" title="播一遍写完一页时的提醒，听听音量合不合适">试听提醒</button>
+      <button onclick="unlock()" id="btnUnlock" style="display:none" class="danger">解除报警</button>
+      <div class="grow"></div>
+      <button class="small" onclick="toggleLogs()">记录</button>
+    </div>
+    <div class="row">
+      <button class="primary" id="btnPrint" onclick="startPrint()">▶ 开始打印</button>
+      <span class="small">从第</span><input id="fromPos" type="number" min="1" value="1" style="width:52px" oninput="fromChanged()" onchange="syncFrom(true)" title="勾选的第几份；和左边队列、上面预览联动"><span class="small">份的第</span>
+      <input id="fromPage" type="number" min="1" value="1" style="width:52px" oninput="fromChanged()" onchange="syncFrom(true)" title="这一份的第几页；和上面预览联动"><span class="small">页开始</span>
+      <button id="btnPause" onclick="pauseResume()" disabled>⏸ 暂停</button>
+      <button id="btnStop" class="danger" onclick="stopPrint()" disabled>⏹ 终止</button>
+      <div class="sep"></div>
+      <span class="status" id="status">未开始</span>
+      <div class="progress"><div id="bar"></div></div>
+      <span class="small" id="pct"></span>
+    </div>
+    <div class="logs" id="logs"></div>
+  </div>
+</div>
+
+<div class="modal" id="turnModal">
+  <div class="box">
+    <h2 id="turnTitle">这一页写完了</h2>
+    <p id="turnText"></p>
+    <div class="btns">
+      <button class="danger" onclick="stopPrint()">不写了</button>
+      <button class="primary" id="btnNext" onclick="nextPage()">继续</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="planModal">
+  <div class="box">
+    <h2>开始打印前核对一下</h2>
+    <p id="planText"></p>
+    <div id="planWarn"></div>
+    <div class="btns">
+      <button onclick="$('planModal').classList.remove('show')">取消</button>
+      <button class="primary" onclick="doStart()">确定，开始写</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="styleModal">
+  <div class="box">
+    <h2>笔迹设置</h2>
+    <div class="opt">
+      <label>会议记录本默认</label><select id="hMeeting" onchange="styleSample()"></select>
+      <label>政治理论学习本默认</label><select id="hStudy" onchange="styleSample()"></select>
+      <label>起伏幅度</label>
+      <div><input id="amount" type="range" min="0.4" max="1.8" step="0.1" oninput="$('amountV').textContent=this.value+' 倍';styleSample()"> <span id="amountV" class="small"></span></div>
+    </div>
+    <div class="hint">相邻几个字一起微微起伏，大小、倾斜缓慢变化，同一个字在同一人写的几个版本之间轮换，重复出现的字每次写法不同。<br>起伏幅度 1 倍是默认值；想更工整调小，想更随意调大。<br>给某一份换了笔迹后，同一记录人以后的记录自动用同一种笔迹。</div>
+    <div class="sample" id="styleSampleBox"></div>
+    <div class="btns">
+      <button onclick="$('styleModal').classList.remove('show')">取消</button>
+      <button class="primary" onclick="saveStyle()">保存，并重排所有份</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let api=null, docs=[], curDoc=null, pages=0, cur=0, fieldNames={}, hands=[], updTimer=null, job={state:'idle'},
+    connected=false, printingKey='', summary=null, studyDefaults={}, sampleTimer=null;
+const $=id=>document.getElementById(id);
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function short(n){return n.replace(/\.docx?$|\.txt$/i,'').replace(/^\d+\./,'')}
+
+// 界面上出了错记进日志，下次再出"死机"之类的情况能查到原因
+window.addEventListener('error', e=>{ try{ api && api.log_js('界面出错：'+e.message+' @'+(e.lineno||'')); }catch(_){} });
+window.addEventListener('unhandledrejection', e=>{ try{ api && api.log_js('界面出错：'+(e.reason && (e.reason.message||e.reason))); }catch(_){} });
+window.addEventListener('pywebviewready', async ()=>{
+  api=window.pywebview.api;
+  const r=await api.init();
+  fieldNames=r.field_names; studyDefaults=r.study_fields||{}; hands=r.hands;
+  $('hand').innerHTML=hands.map(h=>'<option value="'+h.key+'">'+esc(h.label)+'</option>').join('');
+  ['hMeeting','hStudy'].forEach(id=>$(id).innerHTML=$('hand').innerHTML);
+  fillPorts(r.ports, r.port);
+  renderQueue(r.docs); if(r.current) showCurrent(r.current);
+  if(r.font_problem) alert(r.font_problem);
+  setInterval(poll, 400);
+});
+
+function fillPorts(ports, sel){
+  const p=$('port'); p.innerHTML='';
+  ports.forEach(x=>{const o=document.createElement('option');o.value=x.port;o.textContent=x.port+(x.ch340?'（写字机）':' '+x.desc);p.appendChild(o)});
+  const o=document.createElement('option');o.value='mock';o.textContent='模拟写字机（只测试，不会真写）';p.appendChild(o);
+  if(sel) p.value=sel;
+}
+
+// ---------- 队列 ----------
+async function chooseFiles(){ const r=await api.choose_files(); if(r) added(r); }
+async function chooseFolder(){ const r=await api.choose_folder(); if(r) added(r); }
+function added(r){
+  if(r.error){ alert(r.error); return; }
+  const say=[];
+  if(r.errors && r.errors.length) say.push('有的文件没加进来：\n'+r.errors.join('\n'));
+  if(r.too_long && r.too_long.length) say.push('这几份表头太长，按原大写不下（程序不缩小字，多出的字不写），请改短后再写：\n'+r.too_long.join('\n'));
+  if(say.length) alert(say.join('\n\n'));
+  renderQueue(r.docs); if(r.current) showCurrent(r.current);
+}
+function renderQueue(list){
+  docs=list||[];
+  const q=$('queue');
+  q.innerHTML=docs.map(d=>
+    '<div class="qi'+(d.current?' cur':'')+(d.checked?'':' off')+'" data-id="'+d.id+'" onclick="selectDoc(\''+d.id+'\')">'+
+    '<input type="checkbox" '+(d.checked?'checked':'')+' onclick="event.stopPropagation();toggleDoc(\''+d.id+'\',this.checked)" title="勾选的才写">'+
+    '<span class="tag '+(d.kind==='study'?'s':'m')+'">'+(d.kind==='study'?'学习':'会议')+'</span>'+
+    '<div style="min-width:0"><div class="nm" title="'+esc(d.name)+'">'+d.pos+'. '+esc(short(d.name))+'</div>'+
+    '<div class="meta'+(d.status.startsWith('已打完')?' good':'')+'" title="'+esc((d.date||'')+(d.recorder?' · 记录人 '+d.recorder:''))+'">'+esc(d.status)+(d.overflow?' · <span class="bad">表头太长</span>':'')+(d.problems?' · <span class="warn">提示'+d.problems+'</span>':'')+'</div></div>'+
+    '<div class="ops"><button class="mini" title="往前挪" onclick="event.stopPropagation();moveDoc(\''+d.id+'\',-1)">↑</button>'+
+    '<button class="mini" title="往后挪" onclick="event.stopPropagation();moveDoc(\''+d.id+'\',1)">↓</button>'+
+    '<button class="mini" title="移出队列" onclick="event.stopPropagation();removeDoc(\''+d.id+'\')">×</button></div></div>').join('');
+  const on=docs.filter(d=>d.checked);
+  $('qsum').innerHTML = docs.length ? ('<span>勾选 '+on.length+' 份，还要写 '+on.reduce((a,d)=>a+d.left_pages,0)+' 页，约 '+on.reduce((a,d)=>a+d.left_minutes,0)+' 分钟</span>'+
+      '<button class="mini" onclick="clearDocs()">清空</button>') : '';
+  $('fromPos').max=Math.max(1,on.length);
+  markPrinting();
+  syncFrom();
+}
+// ---------- 下面"从第几份的第几页开始"与左边队列、上面预览联动 ----------
+function syncFrom(force){
+  // 上面动 → 下面跟着变；光标正在框里打字时不改那个框（force=打完离开框时再对齐）
+  if(!curDoc) return;
+  const on=docs.filter(d=>d.checked);
+  const k=on.findIndex(d=>d.id===curDoc.id);
+  if(k<0) return;                        // 当前这份没勾选，不在打印范围里
+  if(force || document.activeElement!==$('fromPos')) $('fromPos').value=k+1;
+  if(force || document.activeElement!==$('fromPage')) $('fromPage').value=cur+1;
+}
+async function fromChanged(){
+  // 下面动 → 左边队列选中那一份、上面预览翻到那一页
+  const on=docs.filter(d=>d.checked);
+  const np=parseInt($('fromPos').value), ng=parseInt($('fromPage').value);
+  if(!on.length || isNaN(np) || isNaN(ng)) return;   // 正在删改，等填完
+  const want=on[Math.max(1,Math.min(on.length,np))-1];
+  const pg=Math.max(1,ng)-1;
+  if(!curDoc || curDoc.id!==want.id){
+    const r=await api.select_doc(want.id); renderQueue(r.docs); if(r.current) showCurrent(r.current, pg);
+  } else gotoPage(pg);
+}
+async function selectDoc(id){ const r=await api.select_doc(id); renderQueue(r.docs); if(r.current) showCurrent(r.current); }   // 翻到它下一页没写的
+async function toggleDoc(id,c){ const r=await api.toggle_doc(id,c); renderQueue(r.docs); }
+async function moveDoc(id,dl){ const r=await api.move_doc(id,dl); if(r.error) return alert(r.error); renderQueue(r.docs); }
+async function removeDoc(id){ const r=await api.remove_doc(id); if(r.error) return alert(r.error); renderQueue(r.docs); if(r.current) showCurrent(r.current); else clearEditor(); }
+async function clearDocs(){ if(!confirm('清空队列？')) return; const r=await api.clear_docs(); if(r.error) return alert(r.error); renderQueue([]); clearEditor(); }
+function clearEditor(){ curDoc=null; pages=0; $('fieldCard').style.display='none'; $('bodyCard').style.display='none'; $('pages').innerHTML='';
+  $('pageLabel').textContent='—'; $('preview').innerHTML='<div class="empty">左边选好原稿后，这里逐页显示写出来的样子。</div>'; }
+
+// ---------- 编辑 ----------
+function showCurrent(c, startPage){
+  curDoc=c;
+  document.querySelector('input[name=kind][value='+c.kind+']').checked=true;
+  buildFields(c.kind, c.fields, c.topic);
+  $('hand').value=c.hand;
+  $('body').value=c.body;
+  $('editTitle').textContent='《'+short(c.name)+'》首页表头（已自动取出，可改）';
+  $('fieldCard').style.display=''; $('bodyCard').style.display='';
+  // 没指定页就翻到这一份下一页没写的地方（没写过的就是首页），底下"从第几页开始"跟着过去
+  showResult(c); gotoPage(startPage===undefined ? (c.next_page||0) : startPage);
+}
+function buildFields(kind, f, topic){
+  const box=$('fields'); box.innerHTML='';
+  fieldNames[kind].forEach(([k,label])=>{
+    const v = f[k] || (kind==='study' ? (studyDefaults[k]||'') : '');
+    box.insertAdjacentHTML('beforeend','<label>'+label+'</label><input data-k="'+k+'" value="'+esc(v)+'" oninput="scheduleUpdate()">');
+  });
+  if(kind==='meeting'){
+    box.insertAdjacentHTML('beforeend','<label>会议议题</label><input data-k="__topic" value="'+esc(topic||'')+'" placeholder="（“会议议题：”同一行接着写的内容，没有就空着）" oninput="scheduleUpdate()">');
+    $('fieldHint').textContent='议题清单、发言等都在下面正文里；正文从首页第6行（“会议议题”下一行）开始写。';
+  }else{
+    $('fieldHint').textContent='学习时间、地点、人数原稿里没有，按上次填的带出来了，改成本月的。正文从“学习内容”下一行开始写。';
+  }
+}
+function kindChanged(){
+  const k=document.querySelector('input[name=kind]:checked').value;
+  const f={}; document.querySelectorAll('#fields input').forEach(i=>{if(i.dataset.k!=='__topic')f[i.dataset.k]=i.value});
+  buildFields(k, f, ''); scheduleUpdate(0);
+}
+function scheduleUpdate(ms){ clearTimeout(updTimer); updTimer=setTimeout(doUpdate, ms===undefined?700:ms); }
+async function doUpdate(){
+  if(!curDoc) return;
+  const kind=document.querySelector('input[name=kind]:checked').value;
+  const f={}; let topic='';
+  document.querySelectorAll('#fields input').forEach(i=>{ if(i.dataset.k==='__topic') topic=i.value; else f[i.dataset.k]=i.value; });
+  const r=await api.update_record(kind, f, topic, $('body').value);
+  if(!r || r.busy) return;
+  showResult(r); gotoPage(Math.min(cur, pages-1)); refreshQueue();
+}
+async function refreshQueue(){ const r=await api.docs(); renderQueue(r); }
+async function setHand(){ const r=await api.set_hand($('hand').value); if(r && !r.busy){ showResult(r); gotoPage(cur); refreshQueue(); } }
+async function reseed(){ if(!curDoc) return; const r=await api.reseed(); if(r){ showResult(r); gotoPage(cur); } }
+function showResult(r){
+  if(r.busy) return;
+  summary=r; pages=r.pages;
+  let s='这一份排好了：共 <b>'+r.pages+'</b> 页（首页 + '+(r.pages-1)+' 页续页），写完大约 <b>'+r.minutes+'</b> 分钟。';
+  if(r.missing) s+='<br><span class="bad">字库里没有这些字，写的时候会空着：'+esc(r.missing)+'</span>';
+  if(r.overflow && r.overflow.length) s+='<br><span class="bad">这几栏太长，按原大写不下（程序不缩小字，多出的字不写），请在上面改短：'+r.overflow.map(esc).join('、')+'</span>';
+  if(r.problems && r.problems.length) s+='<br><span class="warn">版式自检提示：'+r.problems.map(esc).join('；')+'</span>';
+  else s+='<br><span class="good">版式自检通过：没有行首标点、行尾开括号、拆开的数字。</span>';
+  $('summary').innerHTML=s;
+  const pb=$('pages'); pb.innerHTML='';
+  for(let i=0;i<pages;i++){const b=document.createElement('button');b.textContent=i===0?'首页':(i+1);b.onclick=(e)=>{e.stopPropagation();gotoPage(i)};pb.appendChild(b)}
+  markPrinting();
+}
+let pageTok=0;
+async function gotoPage(i){
+  if(!pages) return; i=Math.max(0,Math.min(pages-1,i)); cur=i;
+  $('pageLabel').textContent='第 '+(i+1)+' 页 / 共 '+pages+' 页';
+  markPrinting(); syncFrom();
+  const tok=++pageTok;
+  const svg=await api.page_svg(i);
+  if(tok===pageTok) $('preview').innerHTML=svg;   // 连续翻页时只显示最后翻到的那页
+}
+function markPrinting(){
+  const running=['printing','paused','turn','turn_doc'].includes(job.state);
+  document.querySelectorAll('#pages button').forEach((b,i)=>{
+    b.classList.toggle('cur', i===cur);
+    b.classList.toggle('printing', running && curDoc && job.doc_id===curDoc.id && i===job.page);
+  });
+  document.querySelectorAll('.qi').forEach(el=>el.classList.toggle('printing', running && el.dataset.id===job.doc_id));
+}
+async function exportG(){ if(!curDoc) return; const r=await api.export_gcode(); if(!r.ok) alert(r.msg); }
+
+// ---------- 笔迹设置 ----------
+async function openStyle(){
+  const s=await api.get_style();
+  $('hMeeting').value=s.hand_default.meeting||'陈继世'; $('hStudy').value=s.hand_default.study||'陈继世';
+  $('amount').value=s.amount; $('amountV').textContent=s.amount+' 倍';
+  $('styleModal').classList.add('show'); styleSample();
+}
+function styleSample(){
+  clearTimeout(sampleTimer);
+  sampleTimer=setTimeout(async ()=>{
+    const [a,b]=await Promise.all([api.preview_style($('amount').value,$('hMeeting').value,''), api.preview_style($('amount').value,$('hStudy').value,'1.跟进学习习近平总书记近期重要讲话和重要指示批示精神（摘编）。（全员）2.《习近平治国理政》第五卷（385—400页）。')]);
+    $('styleSampleBox').innerHTML='<div class="small">会议记录本样张</div>'+a+'<div class="small" style="margin-top:6px">政治理论学习本样张</div>'+b;
+  },250);
+}
+async function saveStyle(){
+  const r=await api.set_style($('amount').value,$('hMeeting').value,$('hStudy').value);
+  if(r.error) return alert(r.error);
+  $('styleModal').classList.remove('show');
+  renderQueue(r.docs); if(r.current) showCurrent(r.current);
+}
+
+// ---------- 写字机 ----------
+async function toggleConn(){
+  if(connected){ const r=await api.disconnect(); if(!r.ok) alert(r.msg); return; }
+  $('btnConn').disabled=true; $('btnConn').textContent='连接中…';
+  const r=await api.connect($('port').value);
+  $('btnConn').disabled=false;
+  if(!r.ok) alert(r.msg);
+}
+async function mc(p){ const r=await p; if(r && !r.ok && r.msg) alert(r.msg); }
+function unlock(){ mc(api.unlock()); }
+document.addEventListener('keydown', e=>{
+  if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
+  if(e.key==='PageDown') gotoPage(cur+1); if(e.key==='PageUp') gotoPage(cur-1);
+});
+
+// ---------- 打印 ----------
+async function startPrint(){
+  if(!docs.length){ alert('先选要写的原稿'); return; }
+  if(!connected){ alert('先连接写字机'); return; }
+  const p=await api.plan(parseInt($('fromPos').value||'1'), parseInt($('fromPage').value||'1'));
+  if(!p.docs){ alert('队列里没有勾选要写的原稿'); return; }
+  const fp=parseInt($('fromPage').value||'1');
+  $('planText').innerHTML='要写 <b>'+p.docs+'</b> 份、共 <b>'+p.pages+'</b> 页，大约 <b>'+p.minutes+'</b> 分钟。<br>'+
+    '第一份是《'+esc(short(p.first))+'》'+(fp>1?'，从第 '+fp+' 页写起':'')+'。<br>'+
+    '请确认：本子放好，<b>笔尖对准'+(fp>1?'这一页横线区':'首页表格')+'的左上角</b>（开写时笔尖在哪，哪就是左上角）。';
+  $('planWarn').innerHTML = p.warn.length ? ('<div class="warn" style="font-weight:600">请留意：</div><ul>'+p.warn.map(w=>'<li>'+esc(w)+'</li>').join('')+'</ul>') : '<div class="good">核对无问题。</div>';
+  $('planModal').classList.add('show');
+}
+async function doStart(){
+  $('planModal').classList.remove('show');
+  const r=await api.start_print(parseInt($('fromPos').value||'1'), parseInt($('fromPage').value||'1'));
+  if(!r.ok) alert(r.msg);
+}
+function pauseResume(){ if(job.state==='paused') api.resume(); else api.pause(); }
+async function stopPrint(){
+  const running=['printing','paused','turn','turn_doc'].includes(job.state);
+  if(running && !confirm('确定终止？\n（笔会马上抬起停住，再回到这一页的左上角。之后可以用“从第几份的第几页开始”接着写）')) return;
+  await api.stop(); $('turnModal').classList.remove('show');
+}
+async function nextPage(){ $('turnModal').classList.remove('show'); await api.next_page(); }
+function toggleLogs(){ $('logs').classList.toggle('show'); }
+
+let polling=false, lastJobKey='';
+async function poll(){
+  // 上一轮还没回来就不再发新的，免得请求越积越多把界面拖死
+  if(!api || polling) return;
+  polling=true;
+  try{ await pollOnce(); } finally { polling=false; }
+}
+async function pollOnce(){
+  let s; try{ s=await api.status(); }catch(e){ return; }
+  connected=s.connected; job=s.job;
+  $('dot').className='dot'+(s.connected?(s.alarm?' alarm':' on'):'');
+  $('btnConn').textContent=s.connecting?'连接中…':(s.connected?'断开':'连接写字机');
+  const st={Idle:'空闲',Run:'运动中',Hold:'停住',Jog:'点动',Alarm:'报警',Door:'门开',Home:'回零',Sleep:'电机已松开',Check:'检查'}[s.state]||s.state;
+  $('machineInfo').textContent=s.connected?(st+'  X '+s.pos[0].toFixed(1)+'  Y '+s.pos[1].toFixed(1)+'  Z '+s.pos[2].toFixed(1)):'';
+  $('btnUnlock').style.display=(s.connected && s.alarm)?'':'none';
+  const running=['printing','paused','turn','turn_doc'].includes(job.state);
+  ['pickCard','fieldCard','bodyCard'].forEach(id=>$(id).classList.toggle('locked', running));
+  $('btnPrint').disabled=running || s.connecting; $('btnPause').disabled=!(['printing','paused'].includes(job.state));
+  const moving = s.connected && ['Run','Jog','Hold'].includes(s.state);
+  $('btnStop').disabled=!(running || moving);
+  $('btnPause').textContent=job.state==='paused'?'▶ 继续':'⏸ 暂停';
+  let pct=0; if(job.total) pct=Math.round(100*job.done/job.total);
+  if(job.state==='printing'||job.state==='paused'){ $('bar').style.width=pct+'%'; $('pct').textContent='本页 '+pct+'%'; }
+  else if(job.state==='done'){ $('bar').style.width='100%'; $('pct').textContent=''; }
+  else { $('pct').textContent=''; if(!running) $('bar').style.width=job.state==='idle'?'0':$('bar').style.width; }
+  $('status').textContent=job.msg||({idle:'未开始'}[job.state]||'');
+  $('status').className='status '+({error:'bad',done:'good',stopped:'warn'}[job.state]||'');
+  // 跟着打印进度切换预览
+  const key=job.doc_id+':'+job.page+':'+job.state;
+  if(key!==lastJobKey){ lastJobKey=key; if(!running || key!==printingKey) refreshQueue(); }   // 队列里的打印情况跟着刷新
+  if(running && key!==printingKey){
+    printingKey=key;
+    if(!curDoc || curDoc.id!==job.doc_id){ const r=await api.select_doc(job.doc_id); renderQueue(r.docs); if(r.current) showCurrent(r.current); }
+    if(pages) gotoPage(job.page);
+  }
+  markPrinting();
+  if(job.state==='turn'){
+    $('turnTitle').textContent='本页已打完，请您更换空白页';
+    $('turnText').innerHTML='第 '+job.page+' 页写完了，接下来写这一份的第 '+(job.page+1)+' 页。换好纸后点"继续"。<br><span class="small">写字机已经抬笔回到左上角；纸放的位置和上一页一样的话，不用再对笔。</span>';
+    $('btnNext').textContent='继续写第 '+(job.page+1)+' 页';
+    $('turnModal').classList.add('show');
+  } else if(job.state==='turn_doc'){
+    const book = job.next_kind==='study'?'政治理论学习记录本':'会议记录本';
+    $('turnTitle').textContent=job.book_change?('本份已打完，请您换成'+book+'的首页'):'本份已打完，请您更换带表格的首页';
+    $('turnText').innerHTML='第 '+(job.doc-1)+' 份写完了，下一份是《'+esc(short(job.doc_name||''))+'》。<br>'+
+      '放好首页、<b>笔尖对准表格左上角</b>后点"继续"。<br><span class="small">写字机已经抬笔回到上一份的左上角；纸放的位置不变的话，笔尖就在这个角上。</span>';
+    $('btnNext').textContent='继续写第 '+job.doc+' 份';
+    $('turnModal').classList.add('show');
+  } else $('turnModal').classList.remove('show');
+  if($('logs').classList.contains('show')) $('logs').textContent=s.logs.join('\n');
+}
+</script>
+</body>
+</html>
