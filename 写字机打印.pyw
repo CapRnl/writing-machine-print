@@ -13,11 +13,23 @@ os.chdir(HERE)
 def main():
     import webview
     from webview.dom import DOMEventHandler
-    from hwprint.app import Api, TITLE, LOG_DIR
-    from hwprint import notify, watchdog
+    from hwprint.app import Api, TITLE
+    from hwprint import app as appmod, config, notify, watchdog
 
-    api = Api()
     hidden = os.environ.get('HWPRINT_SMOKE') == '1'
+    if hidden:
+        # 冒烟测试只用临时目录放队列和日志，也不存设置：不碰用户的 队列.json 和 日志
+        # （09-28 用户打印时跑了一次冒烟测试，把用户的队列重排了一遍、日志里多出二十几行）
+        import shutil
+        import tempfile
+        tmp = os.path.join(tempfile.gettempdir(), 'hwprint-smoke')
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(tmp)
+        config.QUEUE_PATH = os.path.join(tmp, '队列.json')
+        config.save = lambda cfg: None
+        appmod.LOG_DIR = os.path.join(tmp, '日志')
+    LOG_DIR = appmod.LOG_DIR
+    api = Api()
     if not hidden:
         watchdog.started(LOG_DIR)      # 记"程序启动"；上次没正常关闭的补记一句
     win = webview.create_window(TITLE, 'hwprint/web/index.html', js_api=api,
