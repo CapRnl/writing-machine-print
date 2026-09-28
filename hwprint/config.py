@@ -121,7 +121,7 @@ def defaults_from_kenjoy():
             # 和 Z 数值对不上。要再用，先做落笔点标定（在废纸上按不同高度各划一道，看从哪个高度开始有墨），不能凭估计
             'z_hover': None,
             # 写字机里的加速度 $120/$121、拐角参数 $11：连接时按这里调（09-27 用户同意试的提速），原值记在 tune_original
-            'tune': {'120': 5000, '121': 5000, '11': 0.02},
+            'tune': {'120': 5000, '121': 3000, '11': 0.02},     # 纵向 5000 时页面下部偶发丢步，09-28 改回 3000
             'tune_original': {},
             'servo_down': int(grbl.get('laserS') or 1000),
             'pen_down_delay': float(st.get('toolOnDelay') or 0.0),
@@ -184,6 +184,14 @@ def load():
         if mc.get('travel') == 8000:
             mc['travel'] = 12000.0
         mig.append('speed-0927')
+    if 'yaccel-0928' not in mig:
+        # 09-28 首页照片逐行量：第 15 行起字越往下越低、末行低约 4 毫米，左右一致；横线等距、程序每行等距、起伏最多 0.44 毫米，
+        # 推测是纵向电机在行程远端（页面下部）丢步（提速到 5000 以后出现过两次）。纵向加速度改回原来的 3000，横向仍 5000；
+        # 模拟每页慢约 9%。只改一次，之后用户或 Claude 改回别的值不会再被改掉
+        tune = base['machine'].setdefault('tune', {})
+        if tune.get('121') == 5000:
+            tune['121'] = 3000
+        mig.append('yaccel-0928')
     if 'hover-off-0927' not in mig:
         # 09-27 22:29 试写：两笔之间抬到 2.5 时笔没离纸、整页拖线，改回抬满（设置里存过的 2.5 一并清掉）
         base['machine']['z_hover'] = None
